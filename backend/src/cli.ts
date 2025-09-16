@@ -3,6 +3,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { RssService } from './services/rss.service';
+import { EmbeddingService } from './services/embedding.service';
+import { RssArticle } from './entities/rss-article.entity';
+import { Repository, IsNull } from 'typeorm';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -12,7 +16,8 @@ async function main() {
   if (args.length === 0) {
     console.log('Usage: scraper-gossip <command> [options]');
     console.log('Commands:');
-    console.log('  seed    Fetch and store RSS feed data from websites');
+    console.log('  seed             Fetch and store RSS feed data from websites');
+    console.log('  update-embeddings Update embeddings for existing articles');
     console.log('Options:');
     console.log(
       '  --seed-website-file <file>    Path to file containing websites (default: default_seed_gossip_websites.txt)',
@@ -24,6 +29,8 @@ async function main() {
 
   if (command === 'seed') {
     await seedCommand(args.slice(1));
+  } else if (command === 'update-embeddings') {
+    await updateEmbeddingsCommand();
   } else {
     console.log(`Unknown command: ${command}`);
     process.exit(1);
@@ -60,6 +67,44 @@ async function seedCommand(args: string[]) {
     console.log('RSS feed seeding completed successfully!');
   } catch (error) {
     console.error('Error during RSS feed seeding:', error);
+    process.exit(1);
+  } finally {
+    await app.close();
+  }
+}
+
+async function updateEmbeddingsCommand() {
+  const app = await NestFactory.createApplicationContext(AppModule);
+  const embeddingService = app.get(EmbeddingService);
+  const rssArticleRepository = app.get<Repository<RssArticle>>(getRepositoryToken(RssArticle));
+
+  try {
+    console.log('Starting embedding update for existing articles...');
+
+    const articlesWithoutEmbeddings = await rssArticleRepository.find({
+      where: { embedding: IsNull() }
+    });
+
+    console.log(`Found ${articlesWithoutEmbeddings.length} articles without embeddings`);
+
+    for (const article of articlesWithoutEmbeddings) {
+      try {
+        const textForEmbedding = `${article.title} ${article.description || ''} ${article.contentEncoded || ''}`;
+        console.log(`Generating embedding for: ${article.title}`);
+
+        const embedding = await embeddingService.generateEmbedding(textForEmbedding);
+        article.embedding = embeddingService.embeddingToBuffer(embedding);
+
+        await rssArticleRepository.save(article);
+        console.log(`✓ Updated embedding for: ${article.title}`);
+      } catch (error) {
+        console.error(`Error updating embedding for article ${article.id}:`, error.message);
+      }
+    }
+
+    console.log('Embedding update completed successfully!');
+  } catch (error) {
+    console.error('Error during embedding update:', error);
     process.exit(1);
   } finally {
     await app.close();

@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RssArticle } from './entities/rss-article.entity';
 import { RssService } from './services/rss.service';
+import { EmbeddingService } from './services/embedding.service';
 
 @Module({
   imports: [
@@ -16,6 +17,6 @@ import { RssService } from './services/rss.service';
     TypeOrmModule.forFeature([RssArticle]),
   ],
   controllers: [AppController],
-  providers: [AppService, RssService],
+  providers: [AppService, RssService, EmbeddingService],
 })
 export class AppModule {}

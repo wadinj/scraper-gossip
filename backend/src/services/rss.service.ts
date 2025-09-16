@@ -8,6 +8,7 @@ import * as cheerio from 'cheerio';
 import * as fs from 'fs';
 import * as path from 'path';
 import { RssArticle } from '../entities/rss-article.entity';
+import { EmbeddingService } from './embedding.service';
 
 const parseXml = promisify(parseString);
 
@@ -35,6 +36,7 @@ export class RssService {
   constructor(
     @InjectRepository(RssArticle)
     private rssArticleRepository: Repository<RssArticle>,
+    private embeddingService: EmbeddingService,
   ) {}
 
   async findRssFeed(websiteUrl: string): Promise<string[]> {
@@ -114,8 +116,13 @@ export class RssService {
           article.description = item.description ? item.description[0] : '';
           article.contentEncoded = item['content:encoded'] ? item['content:encoded'][0] : '';
 
+          const textForEmbedding = `${article.title} ${article.description || ''} ${article.contentEncoded || ''}`;
+          console.log(`Generating embedding for: ${article.title}`);
+          const embedding = await this.embeddingService.generateEmbedding(textForEmbedding);
+          article.embedding = this.embeddingService.embeddingToBuffer(embedding);
+
           await this.rssArticleRepository.save(article);
-          console.log(`Saved article: ${article.title}`);
+          console.log(`Saved article with embedding: ${article.title}`);
         } else {
           console.log(`Article already exists: ${item.title[0]}`);
         }

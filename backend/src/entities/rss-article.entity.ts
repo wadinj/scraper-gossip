@@ -23,6 +23,9 @@ export class RssArticle {
   @Column('text', { nullable: true })
   contentEncoded: string;
 
+  @Column('blob', { nullable: true })
+  embedding: Buffer;
+
   @CreateDateColumn()
   createdAt: Date;
 

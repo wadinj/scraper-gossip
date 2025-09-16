@@ -21,6 +21,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.7.3",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
@@ -30,6 +31,7 @@
     "cheerio": "^1.1.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sqlite-vec": "^0.1.7-alpha.2",
     "sqlite3": "^5.1.7",
     "typeorm": "^0.3.26",
     "xml2js": "^0.6.2"
