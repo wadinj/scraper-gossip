@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ChromaClient, Collection } from 'chromadb';
 import {
   Article,
@@ -6,55 +6,83 @@ import {
 } from '../interfaces/article.interface';
 import { EmbeddingService } from '../services/embedding.service';
 
+// Constants
+const CHROMA_CONFIG = {
+  HOST: 'localhost',
+  PORT: 8000,
+  COLLECTION_NAME: 'articles',
+} as const;
+
+const DEFAULT_LIMITS = {
+  SEARCH_RESULTS: 10,
+  FIND_RESULTS: 10,
+} as const;
+
+// Type definitions for Chroma results
+interface ChromaGetResult {
+  ids: string[];
+  metadatas: unknown[];
+  documents?: string[];
+}
+
+interface ChromaQueryResult {
+  ids: string[][];
+  metadatas: unknown[][];
+  distances: number[][];
+  documents?: string[][];
+}
+
+interface NormalizedQueryResult {
+  ids: string[];
+  metadatas: unknown[];
+  distances: number[];
+}
+
 @Injectable()
 export class ArticleRepository implements OnModuleInit {
+  private readonly logger = new Logger(ArticleRepository.name);
   private client: ChromaClient;
   private collection: Collection;
-  private readonly collectionName = 'articles';
 
   constructor(private readonly embeddingService: EmbeddingService) {}
 
-  async onModuleInit() {
+  async onModuleInit(): Promise<void> {
     try {
       await this.initializeChroma();
-      console.log('Chroma vector database initialized successfully');
+      this.logger.log('Chroma vector database initialized successfully');
     } catch (error) {
-      console.error('Error initializing Chroma:', error);
+      this.logger.error('Error initializing Chroma:', error);
     }
   }
 
-  private async initializeChroma() {
+  private async initializeChroma(): Promise<void> {
     this.client = new ChromaClient({
-      host: 'localhost',
-      port: 8000,
+      host: CHROMA_CONFIG.HOST,
+      port: CHROMA_CONFIG.PORT,
     });
 
-    // Get or create collection for RSS articles
     try {
       this.collection = await this.client.getCollection({
-        name: this.collectionName,
+        name: CHROMA_CONFIG.COLLECTION_NAME,
       });
-      console.log('Using existing Chroma collection:', this.collectionName);
+      this.logger.log(`Using existing Chroma collection: ${CHROMA_CONFIG.COLLECTION_NAME}`);
     } catch {
-      // Collection doesn't exist, create it
       this.collection = await this.client.createCollection({
-        name: this.collectionName,
+        name: CHROMA_CONFIG.COLLECTION_NAME,
       });
-      console.log('Created new Chroma collection:', this.collectionName);
+      this.logger.log(`Created new Chroma collection: ${CHROMA_CONFIG.COLLECTION_NAME}`);
     }
   }
 
   async create(articles: Article[]): Promise<void> {
     try {
       if (!this.collection) {
-        console.log(
-          'Chroma collection not available, skipping batch article insertion',
-        );
+        this.logger.warn('Chroma collection not available, skipping article insertion');
         return;
       }
 
       if (articles.length === 0) {
-        console.log('No articles to insert');
+        this.logger.debug('No articles to insert');
         return;
       }
 
@@ -63,7 +91,7 @@ export class ArticleRepository implements OnModuleInit {
       const documents: string[] = [];
       const embeddings: number[][] = [];
 
-      console.log(`Generating embeddings for ${articles.length} articles...`);
+      this.logger.log(`Processing ${articles.length} articles for insertion`);
 
       for (const article of articles) {
         const metadata: ChromaArticleMetadata = {
@@ -75,17 +103,14 @@ export class ArticleRepository implements OnModuleInit {
           contentEncoded: article.contentEncoded,
         };
 
-        const documentText = `${article.title} ${article.description} ${article.contentEncoded}`;
-        const embedding =
-          await this.embeddingService.generateEmbedding(documentText);
+        const documentText = this.buildDocumentText(article);
+        const embedding = await this.embeddingService.generateEmbedding(documentText);
 
         ids.push(article.id);
         metadatas.push(metadata);
         documents.push(documentText);
         embeddings.push(embedding);
       }
-
-      console.log(`Inserting ${articles.length} articles into Chroma...`);
 
       await this.collection.add({
         ids,
@@ -94,170 +119,145 @@ export class ArticleRepository implements OnModuleInit {
         embeddings,
       });
 
-      console.log(
-        `Successfully inserted ${articles.length} articles into Chroma`,
-      );
+      this.logger.log(`Successfully inserted ${articles.length} articles`);
     } catch (error) {
-      console.log('Error inserting batch articles into Chroma:', error);
-      // Don't throw error to allow seeding to continue
+      this.logger.error('Error inserting articles into Chroma:', error);
+      throw error;
     }
+  }
+
+  private buildDocumentText(article: Article): string {
+    return `${article.title} ${article.description} ${article.contentEncoded}`.trim();
   }
 
   async findByLink(link: string): Promise<Article | undefined> {
     try {
       if (!this.collection) {
-        console.log('Chroma collection not available');
+        this.logger.warn('Chroma collection not available');
         return undefined;
       }
 
       const results = await this.collection.get({
         where: { link: { $eq: link } },
         include: ['metadatas'],
-      });
+      }) as ChromaGetResult;
 
       if (!results.ids || results.ids.length === 0) {
         return undefined;
       }
 
-      const metadata = results
-        .metadatas?.[0] as unknown as ChromaArticleMetadata;
-      if (!metadata) return undefined;
+      const metadata = results.metadatas[0] as ChromaArticleMetadata;
+      if (!metadata) {
+        return undefined;
+      }
 
-      return {
-        id: results.ids[0],
-        title: metadata.title,
-        link: metadata.link,
-        creator: metadata.creator,
-        pubDate: new Date(metadata.pubDate),
-        description: metadata.description,
-        contentEncoded: metadata.contentEncoded,
-      };
+      return this.mapMetadataToArticle(results.ids[0], metadata);
     } catch (error) {
-      console.log('Error finding article by link:', error);
+      this.logger.error('Error finding article by link:', error);
       return undefined;
     }
   }
 
-  async find(limit: number = 10): Promise<Article[]> {
+  private mapMetadataToArticle(id: string, metadata: ChromaArticleMetadata, distance = 0): Article {
+    return {
+      id,
+      title: metadata.title,
+      link: metadata.link,
+      creator: metadata.creator,
+      pubDate: new Date(metadata.pubDate),
+      description: metadata.description,
+      contentEncoded: metadata.contentEncoded,
+      distance,
+    };
+  }
+
+  async find(limit: number = DEFAULT_LIMITS.FIND_RESULTS): Promise<Article[]> {
     try {
       if (!this.collection) {
-        console.log('Chroma collection not available, returning empty results');
+        this.logger.warn('Chroma collection not available');
         return [];
       }
 
       const results = await this.collection.get({
         limit,
         include: ['metadatas'],
-      });
-
-      console.log(`Find results: ${results.ids?.length || 0} articles found`);
+      }) as ChromaGetResult;
 
       if (!results.ids || !results.metadatas) {
-        console.log('No articles in collection');
         return [];
       }
 
-      const articles = this.mapResultsToArticles(results, false);
-      console.log(`Mapped ${articles.length} articles from find results`);
-
-      return articles;
+      return this.mapGetResultsToArticles(results);
     } catch (error) {
-      console.log('Error getting articles:', error);
+      this.logger.error('Error getting articles:', error);
       return [];
     }
   }
 
-  async search(searchQuery?: string, limit: number = 10): Promise<Article[]> {
+  private mapGetResultsToArticles(results: ChromaGetResult): Article[] {
+    const articles: Article[] = [];
+
+    for (let i = 0; i < results.ids.length; i++) {
+      const metadata = results.metadatas[i] as ChromaArticleMetadata;
+      if (metadata) {
+        articles.push(this.mapMetadataToArticle(results.ids[i], metadata));
+      }
+    }
+
+    return articles;
+  }
+
+  async search(searchQuery?: string, limit: number = DEFAULT_LIMITS.SEARCH_RESULTS): Promise<Article[]> {
     try {
       if (!this.collection) {
-        console.log('Chroma collection not available, returning empty results');
+        this.logger.warn('Chroma collection not available');
         return [];
       }
 
-      if (!searchQuery || !searchQuery.trim()) {
+      if (!searchQuery?.trim()) {
         return this.find(limit);
       }
 
-      console.log(
-        `Searching for: "${searchQuery.trim()}" with limit: ${limit}`,
-      );
-
-      // Generate embedding for the search query
       const queryEmbedding = await this.embeddingService.generateEmbedding(searchQuery.trim());
-
       const results = await this.collection.query({
         queryEmbeddings: [queryEmbedding],
         nResults: limit,
         include: ['metadatas', 'distances'],
-      });
+      }) as ChromaQueryResult;
 
-      console.log('Raw query results:', {
-        ids: results.ids?.[0]?.length || 0,
-        distances: results.distances?.[0]?.length || 0,
-        metadatas: results.metadatas?.[0]?.length || 0,
-        firstDistance: results.distances?.[0]?.[0],
-      });
-
-      if (
-        !results.ids?.[0] ||
-        !results.distances?.[0] ||
-        !results.metadatas?.[0]
-      ) {
-        console.log('No results returned from Chroma query');
+      if (!results.ids?.[0] || !results.distances?.[0] || !results.metadatas?.[0]) {
         return [];
       }
 
-      // Convert query results format to consistent format
-      const normalizedResults = {
+      const normalizedResults: NormalizedQueryResult = {
         ids: results.ids[0],
         metadatas: results.metadatas[0],
         distances: results.distances[0],
       };
 
-      const articles = this.mapResultsToArticles(normalizedResults, true);
-      console.log(`Mapped ${articles.length} articles from search results`);
-
-      return articles;
+      return this.mapQueryResultsToArticles(normalizedResults);
     } catch (error) {
-      console.log('Error searching articles:', error);
+      this.logger.error('Error searching articles:', error);
       return [];
     }
   }
 
-  private mapResultsToArticles(
-    results: any,
-    hasDistances: boolean = false,
-  ): Article[] {
+  private mapQueryResultsToArticles(results: NormalizedQueryResult): Article[] {
     const articles: Article[] = [];
 
     for (let i = 0; i < results.ids.length; i++) {
-      let distance = 0; // Default distance for get queries
-
-      if (hasDistances && results.distances) {
-        distance = results.distances[i];
-        if (distance === null || distance === undefined) continue;
+      const distance = results.distances[i];
+      if (distance === null || distance === undefined) {
+        continue;
       }
 
-      const metadata = results.metadatas[i] as unknown as ChromaArticleMetadata;
+      const metadata = results.metadatas[i] as ChromaArticleMetadata;
       if (metadata) {
-        articles.push({
-          id: results.ids[i],
-          title: metadata.title,
-          link: metadata.link,
-          creator: metadata.creator,
-          pubDate: new Date(metadata.pubDate),
-          description: metadata.description,
-          contentEncoded: metadata.contentEncoded,
-          distance,
-        });
+        articles.push(this.mapMetadataToArticle(results.ids[i], metadata, distance));
       }
     }
 
-    // Sort by distance (lowest first for search results, keep original order for get results)
-    if (hasDistances) {
-      return articles.sort((a, b) => (a.distance || 0) - (b.distance || 0));
-    }
-
-    return articles;
+    return articles.sort((a, b) => (a.distance || 0) - (b.distance || 0));
   }
+
 }
