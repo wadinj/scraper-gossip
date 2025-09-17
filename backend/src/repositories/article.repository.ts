@@ -111,6 +111,20 @@ export class ArticleRepository implements OnModuleInit {
     return `${article.title} ${article.description} ${article.contentEncoded}`.trim();
   }
 
+  async count(): Promise<number> {
+    try {
+      if (!this.collection) {
+        return 0;
+      }
+
+      const result = await this.collection.count();
+      return result;
+    } catch (error) {
+      this.logger.error('Error getting collection count:', error);
+      return 0;
+    }
+  }
+
   async findByLink(link: string): Promise<Article | undefined> {
     try {
       if (!this.collection) {

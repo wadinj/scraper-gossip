@@ -8,7 +8,6 @@ import { ArticleService } from './article.service';
 import { Article } from '../interfaces/article.interface';
 import * as crypto from 'crypto';
 
-// Constants
 const RSS_CONFIG = {
   TIMEOUT: 10000,
   HEAD_TIMEOUT: 5000,
@@ -21,7 +20,8 @@ const RSS_CONFIG = {
     '/rss/',
   ],
   RSS_SELECTORS: {
-    RSS_LINKS: 'link[type="application/rss+xml"], link[type="application/atom+xml"]',
+    RSS_LINKS:
+      'link[type="application/rss+xml"], link[type="application/atom+xml"]',
     FEED_ANCHORS: 'a[href*="rss"], a[href*="feed"]',
   },
 } as const;
@@ -180,7 +180,9 @@ export class RssService {
       const fileContent = await fs.readFile(filePath, 'utf-8');
       const websites = this.parseWebsiteFile(fileContent);
 
-      this.logger.log(`Processing ${websites.length} websites from ${filePath}`);
+      this.logger.log(
+        `Processing ${websites.length} websites from ${filePath}`,
+      );
 
       for (const website of websites) {
         this.logger.log(`Processing website: ${website}`);
