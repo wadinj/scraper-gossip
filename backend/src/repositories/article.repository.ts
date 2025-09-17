@@ -5,13 +5,10 @@ import {
   ChromaArticleMetadata,
 } from '../interfaces/article.interface';
 import { EmbeddingService } from '../services/embedding.service';
+import { envConfig } from '../config/env.config';
 
 // Constants
-const CHROMA_CONFIG = {
-  HOST: 'localhost',
-  PORT: 8000,
-  COLLECTION_NAME: 'articles',
-} as const;
+const COLLECTION_NAME = 'articles';
 
 const DEFAULT_LIMITS = {
   SEARCH_RESULTS: 10,
@@ -56,21 +53,23 @@ export class ArticleRepository implements OnModuleInit {
   }
 
   private async initializeChroma(): Promise<void> {
+    const chromaConfig = envConfig.chroma;
+
     this.client = new ChromaClient({
-      host: CHROMA_CONFIG.HOST,
-      port: CHROMA_CONFIG.PORT,
+      host: chromaConfig.host,
+      port: chromaConfig.port,
     });
 
     try {
       this.collection = await this.client.getCollection({
-        name: CHROMA_CONFIG.COLLECTION_NAME,
+        name: COLLECTION_NAME,
       });
-      this.logger.log(`Using existing Chroma collection: ${CHROMA_CONFIG.COLLECTION_NAME}`);
+      this.logger.log(`Using existing Chroma collection: ${COLLECTION_NAME}`);
     } catch {
       this.collection = await this.client.createCollection({
-        name: CHROMA_CONFIG.COLLECTION_NAME,
+        name: COLLECTION_NAME,
       });
-      this.logger.log(`Created new Chroma collection: ${CHROMA_CONFIG.COLLECTION_NAME}`);
+      this.logger.log(`Created new Chroma collection: ${COLLECTION_NAME}`);
     }
   }
 
