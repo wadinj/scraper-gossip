@@ -5,17 +5,16 @@ A semantic news indexing application that retrieves and organizes public gossip 
 ## 🏗️ Tech Stack
 
 ### Backend: NestJS
-- **Why**: Perfect for discovering the framework while having fun with its decorator-based architecture and built-in TypeScript support
+- **Why**: Perfect for discovering the framework while having fun 
 - **Features**: RESTful API, dependency injection, modular structure
 
 ### Frontend: Next.js
-- **Why**: Definitely overkill for this project, but provides an excellent foundation for rapid development and easy scaffolding
+- **Why**: Definitely overkill for this project, but easy to scaffold and deploy
 - **Features**: Server-side rendering, automatic code splitting, built-in optimization
 
-### Database: SQLite
-- **Database**: SQLite
-- **Why**: Lightweight, serverless, and requires no additional processes - perfect for development and small-scale deployment
-- **Benefits**: Zero configuration, file-based storage, full SQL support
+### Database: Chroma
+- **Database**: Chroma
+- **Why**: Never used it before, but it seems to fit the use case well. 
 
 ## 🚀 Getting Started
 
@@ -34,16 +33,16 @@ A semantic news indexing application that retrieves and organizes public gossip 
 2. **Backend Setup**
    ```bash
    cd backend
-   npm install
-   npm run start:dev
+   yarn install
+   yarn run start:dev
    ```
    The backend will run on `http://localhost:4243`
 
 3. **Frontend Setup**
    ```bash
-   cd frontend/scraper-gossip
-   npm install
-   npm run dev
+   cd frontend
+   yarn install
+   yarn run dev
    ```
    The frontend will run on `http://localhost:4242`
 
@@ -56,9 +55,8 @@ scraper-gossip/
 │   ├── test/         # Test files
 │   └── package.json  # Backend dependencies
 ├── frontend/         # Next.js client application
-│   └── scraper-gossip/
-│       ├── src/      # React components and pages
-│       └── package.json # Frontend dependencies
+│   ├── src/      # React components and pages
+│   └── package.json # Frontend dependencies
 └── README.md         # This file
 ```
 
@@ -102,7 +100,7 @@ Each article is automatically processed to generate semantic embeddings that ena
 - **Model**: `all-MiniLM-L6-v2` (Sentence Transformer)
 - **Dimensions**: 384 (compact yet effective)
 - **Provider**: Hugging Face Transformers (open-source)
-- **Storage**: SQLite BLOB field (1536 bytes per embedding)
+- **Storage**: Chroma DB
 
 ### Features
 - **Offline Processing**: No API keys required, fully self-contained
@@ -117,21 +115,3 @@ Embeddings are automatically generated during the seeding process:
 ```bash
 npm run scraper-gossip seed
 ```
-
-#### Update Embeddings for Existing Articles
-If you need to regenerate embeddings for articles already in the database:
-```bash
-npm run scraper-gossip update-embeddings
-```
-
-This command:
-- Finds all articles without embeddings
-- Processes article title + description + content
-- Generates semantic embeddings using the transformer model
-- Stores embeddings in the database for future similarity searches
-
-### Technical Implementation
-- **Text Processing**: HTML tags removed, content truncated to 512 characters
-- **Pooling Strategy**: Mean pooling with normalization
-- **Fallback**: Deterministic dummy embeddings if model loading fails
-- **Performance**: Model loads once on service initialization
