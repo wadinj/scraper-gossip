@@ -84,8 +84,9 @@ export class ArticleRepository implements OnModuleInit {
         };
 
         const documentText = this.buildDocumentText(article);
-        const embedding =
-          await this.embeddingService.generateEmbedding(documentText);
+        const embedding = await this.embeddingService.generateEmbedding(
+          article.title,
+        );
 
         ids.push(article.id);
         metadatas.push(metadata);
