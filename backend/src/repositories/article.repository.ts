@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { ChromaClient, Collection } from 'chromadb';
+import { ChromaClient, Collection, GetResult, QueryResult } from 'chromadb';
 import {
   Article,
   ChromaArticleMetadata,
@@ -7,33 +7,12 @@ import {
 import { EmbeddingService } from '../services/embedding.service';
 import { envConfig } from '../config/env.config';
 
-// Constants
 const COLLECTION_NAME = 'articles';
 
 const DEFAULT_LIMITS = {
   SEARCH_RESULTS: 10,
   FIND_RESULTS: 10,
 } as const;
-
-// Type definitions for Chroma results
-interface ChromaGetResult {
-  ids: string[];
-  metadatas: unknown[];
-  documents?: string[];
-}
-
-interface ChromaQueryResult {
-  ids: string[][];
-  metadatas: unknown[][];
-  distances: number[][];
-  documents?: string[][];
-}
-
-interface NormalizedQueryResult {
-  ids: string[];
-  metadatas: unknown[];
-  distances: number[];
-}
 
 @Injectable()
 export class ArticleRepository implements OnModuleInit {
@@ -76,7 +55,9 @@ export class ArticleRepository implements OnModuleInit {
   async create(articles: Article[]): Promise<void> {
     try {
       if (!this.collection) {
-        this.logger.warn('Chroma collection not available, skipping article insertion');
+        this.logger.warn(
+          'Chroma collection not available, skipping article insertion',
+        );
         return;
       }
 
@@ -103,7 +84,8 @@ export class ArticleRepository implements OnModuleInit {
         };
 
         const documentText = this.buildDocumentText(article);
-        const embedding = await this.embeddingService.generateEmbedding(documentText);
+        const embedding =
+          await this.embeddingService.generateEmbedding(documentText);
 
         ids.push(article.id);
         metadatas.push(metadata);
@@ -136,16 +118,17 @@ export class ArticleRepository implements OnModuleInit {
         return undefined;
       }
 
-      const results = await this.collection.get({
-        where: { link: { $eq: link } },
-        include: ['metadatas'],
-      }) as ChromaGetResult;
+      const results: GetResult<ChromaArticleMetadata> =
+        await this.collection.get({
+          where: { link: { $eq: link } },
+          include: ['metadatas'],
+        });
 
-      if (!results.ids || results.ids.length === 0) {
+      if (!results.ids || results.ids.length === 0 || !results.metadatas) {
         return undefined;
       }
 
-      const metadata = results.metadatas[0] as ChromaArticleMetadata;
+      const metadata = results.metadatas[0];
       if (!metadata) {
         return undefined;
       }
@@ -157,7 +140,11 @@ export class ArticleRepository implements OnModuleInit {
     }
   }
 
-  private mapMetadataToArticle(id: string, metadata: ChromaArticleMetadata, distance = 0): Article {
+  private mapMetadataToArticle(
+    id: string,
+    metadata: ChromaArticleMetadata,
+    distance = 0,
+  ): Article {
     return {
       id,
       title: metadata.title,
@@ -177,10 +164,11 @@ export class ArticleRepository implements OnModuleInit {
         return [];
       }
 
-      const results = await this.collection.get({
-        limit,
-        include: ['metadatas'],
-      }) as ChromaGetResult;
+      const results: GetResult<ChromaArticleMetadata> =
+        await this.collection.get({
+          limit,
+          include: ['metadatas'],
+        });
 
       if (!results.ids || !results.metadatas) {
         return [];
@@ -193,11 +181,13 @@ export class ArticleRepository implements OnModuleInit {
     }
   }
 
-  private mapGetResultsToArticles(results: ChromaGetResult): Article[] {
+  private mapGetResultsToArticles(
+    results: GetResult<ChromaArticleMetadata>,
+  ): Article[] {
     const articles: Article[] = [];
 
     for (let i = 0; i < results.ids.length; i++) {
-      const metadata = results.metadatas[i] as ChromaArticleMetadata;
+      const metadata = results.metadatas?.[i];
       if (metadata) {
         articles.push(this.mapMetadataToArticle(results.ids[i], metadata));
       }
@@ -206,7 +196,10 @@ export class ArticleRepository implements OnModuleInit {
     return articles;
   }
 
-  async search(searchQuery?: string, limit: number = DEFAULT_LIMITS.SEARCH_RESULTS): Promise<Article[]> {
+  async search(
+    searchQuery?: string,
+    limit: number = DEFAULT_LIMITS.SEARCH_RESULTS,
+  ): Promise<Article[]> {
     try {
       if (!this.collection) {
         this.logger.warn('Chroma collection not available');
@@ -217,46 +210,57 @@ export class ArticleRepository implements OnModuleInit {
         return this.find(limit);
       }
 
-      const queryEmbedding = await this.embeddingService.generateEmbedding(searchQuery.trim());
-      const results = await this.collection.query({
-        queryEmbeddings: [queryEmbedding],
-        nResults: limit,
-        include: ['metadatas', 'distances'],
-      }) as ChromaQueryResult;
+      const queryEmbedding = await this.embeddingService.generateEmbedding(
+        searchQuery.trim(),
+      );
 
-      if (!results.ids?.[0] || !results.distances?.[0] || !results.metadatas?.[0]) {
+      const results: QueryResult<ChromaArticleMetadata> =
+        await this.collection.query({
+          queryEmbeddings: [queryEmbedding],
+          nResults: limit,
+          include: ['metadatas', 'distances'],
+        });
+
+      if (
+        !results.ids?.[0] ||
+        !results.distances?.[0] ||
+        !results.metadatas?.[0]
+      ) {
         return [];
       }
 
-      const normalizedResults: NormalizedQueryResult = {
-        ids: results.ids[0],
-        metadatas: results.metadatas[0],
-        distances: results.distances[0],
-      };
-
-      return this.mapQueryResultsToArticles(normalizedResults);
+      return this.mapQueryResultsToArticles(results);
     } catch (error) {
       this.logger.error('Error searching articles:', error);
       return [];
     }
   }
 
-  private mapQueryResultsToArticles(results: NormalizedQueryResult): Article[] {
+  private mapQueryResultsToArticles(
+    results: QueryResult<ChromaArticleMetadata>,
+  ): Article[] {
     const articles: Article[] = [];
 
-    for (let i = 0; i < results.ids.length; i++) {
-      const distance = results.distances[i];
+    const ids = results.ids[0];
+    const metadatas = results.metadatas?.[0];
+    const distances = results.distances?.[0];
+
+    if (!ids || !metadatas || !distances) {
+      return articles;
+    }
+
+    for (let i = 0; i < ids.length; i++) {
+      const distance = distances[i];
       if (distance === null || distance === undefined) {
         continue;
       }
 
-      const metadata = results.metadatas[i] as ChromaArticleMetadata;
+      const metadata = metadatas[i];
       if (metadata) {
-        articles.push(this.mapMetadataToArticle(results.ids[i], metadata, distance));
+        articles.push(this.mapMetadataToArticle(ids[i], metadata, distance));
       }
     }
 
     return articles.sort((a, b) => (a.distance || 0) - (b.distance || 0));
   }
-
 }
