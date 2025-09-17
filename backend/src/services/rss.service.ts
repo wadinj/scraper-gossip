@@ -128,7 +128,7 @@ export class RssService {
         return;
       }
 
-      const newArticles: Article[] = [];
+      const articlesToSave: Article[] = [];
       this.logger.log(`Processing ${items.length} articles from RSS feed`);
 
       for (const item of items) {
@@ -138,17 +138,20 @@ export class RssService {
           continue;
         }
 
+        // TODO(Jonathan): Replace with IN clause for batch checking
         const existingArticle = await this.articleService.findByLink(link);
         if (!existingArticle) {
           const article = this.buildArticleFromRssItem(item);
-          newArticles.push(article);
+          articlesToSave.push(article);
         }
       }
 
-      if (newArticles.length > 0) {
-        this.logger.log(`Inserting ${newArticles.length} new articles`);
-        await this.articleService.create(newArticles);
-        this.logger.log(`Successfully inserted ${newArticles.length} articles`);
+      if (articlesToSave.length > 0) {
+        this.logger.log(`Inserting ${articlesToSave.length} new articles`);
+        await this.articleService.create(articlesToSave);
+        this.logger.log(
+          `Successfully inserted ${articlesToSave.length} articles`,
+        );
       } else {
         this.logger.log('No new articles to insert');
       }
