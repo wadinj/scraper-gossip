@@ -1,76 +1,49 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { pipeline, PipelineType } from '@huggingface/transformers';
+import { pipeline, FeatureExtractionPipeline } from '@xenova/transformers';
 
 @Injectable()
 export class EmbeddingService implements OnModuleInit {
-  private embedder: any;
-  private readonly modelName = 'Xenova/all-MiniLM-L6-v2';
+  private embedder?: FeatureExtractionPipeline = undefined;
 
   async onModuleInit() {
     try {
-      console.log('Loading embedding model...');
-      this.embedder = await pipeline('feature-extraction', this.modelName);
-      console.log('Embedding model loaded successfully!');
+      console.log('Initializing embedding model: all-MiniLM-L6-v2...');
+      this.embedder = await pipeline(
+        'feature-extraction',
+        'Xenova/all-MiniLM-L6-v2',
+        { quantized: false },
+      );
+      console.log('Embedding model initialized successfully');
     } catch (error) {
-      console.error('Error loading embedding model:', error.message);
+      console.error('Error initializing embedding model:', error);
     }
   }
 
-  async generateEmbedding(text: string): Promise<Float32Array> {
+  async generateEmbedding(text: string): Promise<number[]> {
     if (!this.embedder) {
-      console.log('Embedding model not loaded, initializing...');
-      await this.onModuleInit();
+      throw new Error('Embedding model not initialized');
     }
-
-    const cleanText = this.cleanText(text);
 
     try {
-      const output = await this.embedder(cleanText, {
+      // Clean and normalize text
+      const cleanText = text.replace(/<[^>]*>/g, '').trim();
+
+      // Generate embedding
+      const result = await this.embedder(cleanText, {
         pooling: 'mean',
-        normalize: true
+        normalize: true,
       });
 
-      return output.data;
+      // Convert tensor to array
+      const embedding = Array.from(result.data) as number[];
+
+      console.log(
+        `Generated embedding for text (length: ${cleanText.length}), embedding dim: ${embedding.length}`,
+      );
+      return embedding;
     } catch (error) {
-      console.warn('Error generating embedding:', error.message);
-      return this.generateDummyEmbedding(text);
+      console.error('Error generating embedding:', error);
+      throw error;
     }
-  }
-
-  private generateDummyEmbedding(text: string): Float32Array {
-    const embedding = new Float32Array(384);
-    const hash = this.simpleHash(text);
-    for (let i = 0; i < embedding.length; i++) {
-      embedding[i] = (Math.sin(hash + i) + 1) / 2;
-    }
-    return embedding;
-  }
-
-  private simpleHash(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return hash;
-  }
-
-  private cleanText(text: string): string {
-    if (!text) return '';
-
-    return text
-      .replace(/<[^>]*>/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 512);
-  }
-
-  embeddingToBuffer(embedding: Float32Array): Buffer {
-    return Buffer.from(embedding.buffer);
-  }
-
-  bufferToEmbedding(buffer: Buffer): Float32Array {
-    return new Float32Array(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
   }
 }

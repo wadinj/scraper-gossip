@@ -1,14 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import axios from 'axios';
 import { parseString } from 'xml2js';
 import { promisify } from 'util';
 import * as cheerio from 'cheerio';
 import * as fs from 'fs';
-import * as path from 'path';
-import { RssArticle } from '../entities/rss-article.entity';
-import { EmbeddingService } from './embedding.service';
+import { ArticleService } from './article.service';
+import { Article } from '../interfaces/article.interface';
+import * as crypto from 'crypto';
 
 const parseXml = promisify(parseString);
 
@@ -33,11 +31,7 @@ interface RssFeed {
 
 @Injectable()
 export class RssService {
-  constructor(
-    @InjectRepository(RssArticle)
-    private rssArticleRepository: Repository<RssArticle>,
-    private embeddingService: EmbeddingService,
-  ) {}
+  constructor(private articleService: ArticleService) {}
 
   async findRssFeed(websiteUrl: string): Promise<string[]> {
     const possibleFeeds: string[] = [];
@@ -45,7 +39,14 @@ export class RssService {
     try {
       // First, try common RSS feed patterns
       const baseUrl = new URL(websiteUrl);
-      const commonPaths = ['/feed', '/rss', '/feed.xml', '/rss.xml', '/feed/', '/rss/'];
+      const commonPaths = [
+        '/feed',
+        '/rss',
+        '/feed.xml',
+        '/rss.xml',
+        '/feed/',
+        '/rss/',
+      ];
 
       for (const path of commonPaths) {
         const feedUrl = `${baseUrl.origin}${path}`;
@@ -66,11 +67,15 @@ export class RssService {
           const $ = cheerio.load(response.data);
 
           // Look for RSS links in the HTML
-          $('link[type="application/rss+xml"], link[type="application/atom+xml"]').each((_, element) => {
+          $(
+            'link[type="application/rss+xml"], link[type="application/atom+xml"]',
+          ).each((_, element) => {
             const href = $(element).attr('href');
             if (href) {
               // Convert relative URLs to absolute
-              const feedUrl = href.startsWith('http') ? href : new URL(href, websiteUrl).toString();
+              const feedUrl = href.startsWith('http')
+                ? href
+                : new URL(href, websiteUrl).toString();
               possibleFeeds.push(feedUrl);
             }
           });
@@ -79,12 +84,17 @@ export class RssService {
           $('a[href*="rss"], a[href*="feed"]').each((_, element) => {
             const href = $(element).attr('href');
             if (href) {
-              const feedUrl = href.startsWith('http') ? href : new URL(href, websiteUrl).toString();
+              const feedUrl = href.startsWith('http')
+                ? href
+                : new URL(href, websiteUrl).toString();
               possibleFeeds.push(feedUrl);
             }
           });
         } catch (error) {
-          console.warn(`Could not parse HTML for ${websiteUrl}:`, error.message);
+          console.warn(
+            `Could not parse HTML for ${websiteUrl}:`,
+            error.message,
+          );
         }
       }
 
@@ -98,34 +108,52 @@ export class RssService {
   async fetchAndStoreRssFeed(url: string): Promise<void> {
     try {
       const response = await axios.get(url);
-      const parsedData = await parseXml(response.data) as RssFeed;
+      const parsedData = (await parseXml(response.data)) as RssFeed;
 
       const items = parsedData.rss.channel[0].item;
+      const newArticles: Article[] = [];
 
+      console.log(`Processing ${items.length} articles from RSS feed...`);
+
+      // First pass: check which articles don't exist and build array for batch insert
       for (const item of items) {
-        const existingArticle = await this.rssArticleRepository.findOne({
-          where: { link: item.link[0] }
-        });
+        const link = item.link[0];
+
+        // Check if article already exists in Chroma
+        const existingArticle = await this.articleService.findByLink(link);
 
         if (!existingArticle) {
-          const article = new RssArticle();
-          article.title = item.title[0];
-          article.link = item.link[0];
-          article.creator = item['dc:creator'] ? item['dc:creator'][0] : '';
-          article.pubDate = new Date(item.pubDate[0]);
-          article.description = item.description ? item.description[0] : '';
-          article.contentEncoded = item['content:encoded'] ? item['content:encoded'][0] : '';
+          // Generate a unique ID for the article
+          const id = crypto.createHash('md5').update(link).digest('hex');
 
-          const textForEmbedding = `${article.title} ${article.description || ''} ${article.contentEncoded || ''}`;
-          console.log(`Generating embedding for: ${article.title}`);
-          const embedding = await this.embeddingService.generateEmbedding(textForEmbedding);
-          article.embedding = this.embeddingService.embeddingToBuffer(embedding);
+          const article: Article = {
+            id,
+            title: item.title[0],
+            link,
+            creator: item['dc:creator'] ? item['dc:creator'][0] : '',
+            pubDate: new Date(item.pubDate[0]),
+            description: item.description ? item.description[0] : '',
+            contentEncoded: item['content:encoded']
+              ? item['content:encoded'][0]
+              : '',
+          };
 
-          await this.rssArticleRepository.save(article);
-          console.log(`Saved article with embedding: ${article.title}`);
+          newArticles.push(article);
         } else {
           console.log(`Article already exists: ${item.title[0]}`);
         }
+      }
+
+      // Batch insert all new articles
+      if (newArticles.length > 0) {
+        console.log(`Batch inserting ${newArticles.length} new articles...`);
+        await this.articleService.create(newArticles);
+        console.log(
+          `Successfully batch inserted ${newArticles.length} articles`,
+        );
+        
+      } else {
+        console.log('No new articles to insert');
       }
 
       console.log(`Successfully processed RSS feed from ${url}`);
@@ -140,8 +168,8 @@ export class RssService {
       const fileContent = fs.readFileSync(filePath, 'utf-8');
       const websites = fileContent
         .split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#')); // Remove empty lines and comments
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#')); // Remove empty lines and comments
 
       console.log(`Processing ${websites.length} websites from ${filePath}`);
 
@@ -156,7 +184,7 @@ export class RssService {
         }
 
         console.log(`Found ${rssFeeds.length} RSS feed(s) for ${website}:`);
-        rssFeeds.forEach(feed => console.log(`  - ${feed}`));
+        rssFeeds.forEach((feed) => console.log(`  - ${feed}`));
 
         // Process each RSS feed found
         for (const feedUrl of rssFeeds) {
@@ -164,7 +192,10 @@ export class RssService {
             console.log(`\nProcessing RSS feed: ${feedUrl}`);
             await this.fetchAndStoreRssFeed(feedUrl);
           } catch (error) {
-            console.error(`Error processing RSS feed ${feedUrl}:`, error.message);
+            console.error(
+              `Error processing RSS feed ${feedUrl}:`,
+              error.message,
+            );
           }
         }
       }
