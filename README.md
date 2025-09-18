@@ -14,7 +14,7 @@ The easiest way to run the entire stack is with Docker:
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone [<repository-url>](https://github.com/wadinj/scraper-gossip.git)
    cd scraper-gossip
    ```
 
