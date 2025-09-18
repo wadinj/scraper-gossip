@@ -1,8 +1,7 @@
 # Scraper Gossip
 
-https://github.com/user-attachments/assets/f5e5e5b5-c5c5-4c5c-8c5c-5c5c5c5c5c5c
-
 A semantic news indexing application that retrieves and organizes public gossip news for easy discovery and analysis.
+https://github.com/user-attachments/assets/0f6f4709-ad5d-421d-a7c6-ddac06d499e7
 
 ## 🚀 Getting Started
 
