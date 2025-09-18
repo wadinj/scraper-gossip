@@ -44,7 +44,7 @@ This single command will start:
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/wadinj/scraper-gossip.git
    cd scraper-gossip
    ```
 
