@@ -2,7 +2,7 @@
 
 A semantic news indexing application that retrieves and organizes public gossip news for easy discovery and analysis.
 
-![Demo](https://github.com/user-attachments/assets/b4a315d7-203b-4009-9478-732e5ccd4630)
+![Demo](https://github.com/user-attachments/assets/e523349b-9643-4adc-8915-5e821eddc1d1)
 
 ## 🚀 Getting Started
 
