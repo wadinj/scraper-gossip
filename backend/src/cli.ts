@@ -12,7 +12,9 @@ async function main() {
   if (args.length === 0) {
     console.log('Usage: scraper-gossip <command> [options]');
     console.log('Commands:');
-    console.log('  seed             Fetch and store RSS feed data from websites');
+    console.log(
+      ' seed             Fetch and store RSS feed data from websites',
+    );
     console.log('Options:');
     console.log(
       '  --seed-website-file <file>    Path to file containing websites (default: default_seed_gossip_websites.txt)',
@@ -65,8 +67,6 @@ async function seedCommand(args: string[]) {
     await app.close();
   }
 }
-
-
 
 main().catch((error) => {
   console.error('Application error:', error);

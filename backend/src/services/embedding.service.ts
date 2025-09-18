@@ -1,13 +1,14 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { pipeline, FeatureExtractionPipeline, env } from '@xenova/transformers';
 
 @Injectable()
 export class EmbeddingService implements OnModuleInit {
+  private readonly logger = new Logger(EmbeddingService.name);
   private embedder?: FeatureExtractionPipeline = undefined;
 
   async onModuleInit() {
     try {
-      console.log('Initializing embedding model: all-MiniLM-L6-v2...');
+      this.logger.log('Initializing embedding model: all-MiniLM-L6-v2...');
 
       // Disable ONNX runtime and force WASM backend for Node.js/Docker
       env.backends.onnx.wasm.numThreads = 1;
@@ -22,9 +23,9 @@ export class EmbeddingService implements OnModuleInit {
           local_files_only: false,
         },
       );
-      console.log('Embedding model initialized successfully');
+      this.logger.log('Embedding model initialized successfully');
     } catch (error) {
-      console.error('Error initializing embedding model:', error);
+      this.logger.error('Error initializing embedding model:', error);
       throw error;
     }
   }
@@ -44,7 +45,7 @@ export class EmbeddingService implements OnModuleInit {
 
       const embedding = Array.from(result.data) as number[];
 
-      console.log(
+      this.logger.debug(
         `Generated embedding for text (length: ${cleanText.length}), embedding dim: ${embedding.length}`,
       );
       return embedding;
