@@ -18,9 +18,37 @@ A semantic news indexing application that retrieves and organizes public gossip 
 
 ## 🚀 Getting Started
 
+### Quick Start with Docker (Recommended)
+
+The easiest way to run the entire stack is with Docker:
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd scraper-gossip
+   ```
+
+2. **Start the entire stack**
+   ```bash
+   docker-compose up -d
+   ```
+
+This single command will start:
+- **Chroma Vector Database** on `http://localhost:8000`
+- **Backend API** on `http://localhost:4243`
+- **Frontend Application** on `http://localhost:4242`
+
+3. **Stop the stack**
+   ```bash
+   docker-compose down
+   ```
+
+### Manual Installation (Development)
+
 ### Prerequisites
-- Node.js (v18 or higher)
-- npm or yarn
+- Node.js (v20 or higher)
+- yarn
+- Docker (for Chroma database)
 
 ### Installation
 
@@ -30,7 +58,12 @@ A semantic news indexing application that retrieves and organizes public gossip 
    cd scraper-gossip
    ```
 
-2. **Backend Setup**
+2. **Start Chroma Database**
+   ```bash
+   docker run -d -p 8000:8000 chromadb/chroma:latest
+   ```
+
+3. **Backend Setup**
    ```bash
    cd backend
    yarn install
@@ -38,7 +71,7 @@ A semantic news indexing application that retrieves and organizes public gossip 
    ```
    The backend will run on `http://localhost:4243`
 
-3. **Frontend Setup**
+4. **Frontend Setup**
    ```bash
    cd frontend
    yarn install
@@ -73,7 +106,7 @@ The application includes a seed command to populate the database with initial RS
 
 ```bash
 cd backend
-npm run scraper-gossip seed [options]
+yarn run scraper-gossip seed [options]
 ```
 
 - **Default behavior**: Uses `default_seed_gossip_websites.txt` if no file is specified
@@ -85,10 +118,10 @@ npm run scraper-gossip seed [options]
 Examples:
 ```bash
 # Use default seed file
-npm run scraper-gossip seed
+yarn run scraper-gossip seed
 
 # Use custom seed file
-npm run scraper-gossip seed --seed-website-file my_rss_sources.txt
+yarn run scraper-gossip seed --seed-website-file my_rss_sources.txt
 ```
 
 ## 🧠 Semantic Embeddings
@@ -113,5 +146,5 @@ Each article is automatically processed to generate semantic embeddings that ena
 #### Generate Embeddings for New Articles
 Embeddings are automatically generated during the seeding process:
 ```bash
-npm run scraper-gossip seed
+yarn run scraper-gossip seed
 ```

@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  chroma:
+    image: chromadb/chroma:latest
+    ports:
+      - "${CHROMA_PORT:-8000}:8000"
+    environment:
+      - CHROMA_SERVER_HOST=${CHROMA_SERVER_HOST:-0.0.0.0}
+      - CHROMA_SERVER_HTTP_PORT=${CHROMA_SERVER_HTTP_PORT:-8000}
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test: [ "CMD", "/bin/bash", "-c", "cat < /dev/null > /dev/tcp/localhost/8000" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${BACKEND_PORT:-4243}:${BACKEND_INTERNAL_PORT:-4243}"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - BACKEND_PORT=${BACKEND_INTERNAL_PORT:-4243}
+      - CHROMA_HOST=${CHROMA_HOST:-chroma}
+      - CHROMA_PORT=${CHROMA_INTERNAL_PORT:-8000}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:4242,http://frontend:3000}
+    depends_on:
+      chroma:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-4242}:${FRONTEND_INTERNAL_PORT:-3000}"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:4243}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
