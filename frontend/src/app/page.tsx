@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Article, SearchParams } from '@/types/article';
 import { ApiService } from '@/services/api';
 
@@ -30,30 +30,44 @@ export default function Home() {
     }
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) {
-      loadAllArticles();
-      return;
-    }
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    (() => {
+      let timeoutId: NodeJS.Timeout;
+      return (query: string) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(async () => {
+          if (!query.trim()) {
+            loadAllArticles();
+            return;
+          }
 
-    try {
-      setSearching(true);
-      setError(null);
-      const params: SearchParams = {
-        q: searchQuery,
-        limit: 50,
-        threshold: 10,
+          try {
+            setSearching(true);
+            setError(null);
+            const params: SearchParams = {
+              q: query,
+              limit: 50,
+              threshold: 10,
+            };
+            const response = await ApiService.searchArticles(params);
+            setArticles(response.data);
+          } catch (err) {
+            setError('Search failed. Please check if the backend server is running.');
+            console.error('Error searching articles:', err);
+          } finally {
+            setSearching(false);
+          }
+        }, 300); // 300ms debounce
       };
-      const response = await ApiService.searchArticles(params);
-      setArticles(response.data);
-    } catch (err) {
-      setError('Search failed. Please check if the backend server is running.');
-      console.error('Error searching articles:', err);
-    } finally {
-      setSearching(false);
-    }
-  };
+    })(),
+    []
+  );
+
+  // Effect to trigger search when searchQuery changes
+  useEffect(() => {
+    debouncedSearch(searchQuery);
+  }, [searchQuery, debouncedSearch]);
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('en-US', {
@@ -79,47 +93,35 @@ export default function Home() {
           Semantic search through RSS articles using vector embeddings
         </p>
 
-        {/* Search Form */}
-        <form onSubmit={handleSearch} className="mb-6">
-          <div className="flex gap-2">
+        {/* Search Input */}
+        <div className="mb-6">
+          <div className="relative">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search articles by content, title, or topic..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
             />
-            <button
-              type="submit"
-              disabled={searching}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {searching ? 'Searching...' : 'Search'}
-            </button>
-            {searchQuery && (
+            {searching && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              </div>
+            )}
+            {searchQuery && !searching && (
               <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  loadAllArticles();
-                }}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                aria-label="Clear search"
               >
-                Clear
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             )}
           </div>
-        </form>
+        </div>
 
-        {/* Results Summary */}
-        {!loading && (
-          <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            {searchQuery
-              ? `Found ${articles.length} articles for "${searchQuery}"`
-              : `Showing ${articles.length} articles`
-            }
-          </div>
-        )}
       </div>
 
       {/* Error Display */}
