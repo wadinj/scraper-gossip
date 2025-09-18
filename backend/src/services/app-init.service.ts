@@ -9,9 +9,6 @@ export class AppInitService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     try {
-      // Wait a bit for all modules to initialize
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
       await this.seedingService.checkAndSeedIfEmpty();
     } catch (error) {
       this.logger.error('Error during app initialization:', error);
