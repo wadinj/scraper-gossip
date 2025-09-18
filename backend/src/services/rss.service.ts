@@ -35,6 +35,7 @@ interface RssItem {
   pubDate: string[];
   description: string[];
   'content:encoded': string[];
+  'media:thumbnail'?: Array<{ $: { url: string } }>;
 }
 
 interface RssChannel {
@@ -167,6 +168,9 @@ export class RssService {
     const link = item.link[0];
     const id = crypto.createHash('md5').update(link).digest('hex');
 
+    // Extract thumbnail URL from media:thumbnail
+    const thumbnail = item['media:thumbnail']?.[0]?.$?.url;
+
     return {
       id,
       title: item.title?.[0] ?? '',
@@ -175,6 +179,7 @@ export class RssService {
       pubDate: new Date(item.pubDate?.[0] ?? Date.now()),
       description: item.description?.[0] ?? '',
       contentEncoded: item['content:encoded']?.[0] ?? '',
+      ...(thumbnail && { thumbnail }),
     };
   }
 

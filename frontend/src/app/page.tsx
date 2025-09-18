@@ -146,6 +146,23 @@ export default function Home() {
               key={article.id}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden"
             >
+              {/* Thumbnail */}
+              {article.thumbnail ? (
+                <div className="aspect-video w-full overflow-hidden">
+                  <img
+                    src={article.thumbnail}
+                    alt={article.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="aspect-video w-full bg-gray-200 dark:bg-gray-700"></div>
+              )}
+
               <div className="p-6">
                 {/* Article Header */}
                 <div className="mb-4">

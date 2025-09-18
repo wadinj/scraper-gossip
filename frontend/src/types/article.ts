@@ -6,6 +6,7 @@ export interface Article {
   pubDate: Date;
   description: string;
   contentEncoded: string;
+  thumbnail?: string;
   similarity?: number;
 }
 

@@ -6,15 +6,16 @@ export interface Article {
   pubDate: Date;
   description: string;
   contentEncoded: string;
+  thumbnail?: string;
   distance?: number;
 }
 
 export interface ChromaArticleMetadata {
-  [key: string]: string | number | boolean;
   title: string;
   link: string;
   creator: string;
   pubDate: string; // ISO string format for Chroma
   description: string;
   contentEncoded: string;
+  thumbnail?: string;
 }

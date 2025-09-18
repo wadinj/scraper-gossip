@@ -83,6 +83,10 @@ export class ArticleRepository implements OnModuleInit {
           contentEncoded: article.contentEncoded,
         };
 
+        if (article.thumbnail) {
+          metadata.thumbnail = article.thumbnail;
+        }
+
         const documentText = this.buildDocumentText(article);
         const embedding = await this.embeddingService.generateEmbedding(
           article.title,
@@ -96,7 +100,7 @@ export class ArticleRepository implements OnModuleInit {
 
       await this.collection.add({
         ids,
-        metadatas,
+        metadatas: metadatas as any,
         documents,
         embeddings,
       });
@@ -133,7 +137,7 @@ export class ArticleRepository implements OnModuleInit {
         return undefined;
       }
 
-      const results: GetResult<ChromaArticleMetadata> =
+      const results: any =
         await this.collection.get({
           where: { link: { $eq: link } },
           include: ['metadatas'],
@@ -168,6 +172,7 @@ export class ArticleRepository implements OnModuleInit {
       pubDate: new Date(metadata.pubDate),
       description: metadata.description,
       contentEncoded: metadata.contentEncoded,
+      ...(metadata.thumbnail && { thumbnail: metadata.thumbnail as string }),
       distance,
     };
   }
@@ -179,7 +184,7 @@ export class ArticleRepository implements OnModuleInit {
         return [];
       }
 
-      const results: GetResult<ChromaArticleMetadata> =
+      const results: any =
         await this.collection.get({
           limit,
           include: ['metadatas'],
@@ -197,7 +202,7 @@ export class ArticleRepository implements OnModuleInit {
   }
 
   private mapGetResultsToArticles(
-    results: GetResult<ChromaArticleMetadata>,
+    results: any,
   ): Article[] {
     const articles: Article[] = [];
 
@@ -229,7 +234,7 @@ export class ArticleRepository implements OnModuleInit {
         searchQuery.trim(),
       );
 
-      const results: QueryResult<ChromaArticleMetadata> =
+      const results: any =
         await this.collection.query({
           queryEmbeddings: [queryEmbedding],
           nResults: limit,
@@ -252,7 +257,7 @@ export class ArticleRepository implements OnModuleInit {
   }
 
   private mapQueryResultsToArticles(
-    results: QueryResult<ChromaArticleMetadata>,
+    results: any,
   ): Article[] {
     const articles: Article[] = [];
 
