@@ -1,22 +1,12 @@
 # Scraper Gossip
 
+https://github.com/user-attachments/assets/f5e5e5b5-c5c5-4c5c-8c5c-5c5c5c5c5c5c
+
 A semantic news indexing application that retrieves and organizes public gossip news for easy discovery and analysis.
 
-## 🏗️ Tech Stack
-
-### Backend: NestJS
-- **Why**: Perfect for discovering the framework while having fun 
-- **Features**: RESTful API, dependency injection, modular structure
-
-### Frontend: Next.js
-- **Why**: Definitely overkill for this project, but easy to scaffold and deploy
-- **Features**: Server-side rendering, automatic code splitting, built-in optimization
-
-### Database: Chroma
-- **Database**: Chroma
-- **Why**: Never used it before, but it seems to fit the use case well. 
-
 ## 🚀 Getting Started
+
+**Note**: When starting the API, if no articles exist in the database, the seeding process will automatically launch to populate initial data.
 
 ### Quick Start with Docker (Recommended)
 
@@ -78,6 +68,20 @@ This single command will start:
    yarn run dev
    ```
    The frontend will run on `http://localhost:4242`
+
+## 🏗️ Tech Stack
+
+### Backend: NestJS
+- **Why**: Perfect for discovering the framework while having fun
+- **Features**: RESTful API, dependency injection, modular structure
+
+### Frontend: Next.js
+- **Why**: Definitely overkill for this project, but easy to scaffold and deploy
+- **Features**: Server-side rendering, automatic code splitting, built-in optimization
+
+### Database: Chroma
+- **Database**: Chroma
+- **Why**: Never used it before, but it seems to fit the use case well.
 
 ## 📁 Project Structure
 
